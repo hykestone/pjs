@@ -6,6 +6,8 @@
 <title>平均数学习工具 - 交互式教学工具</title>
 <!-- ECharts 5.6.0（jsDelivr 锁定版本 + SRI） -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
+<!-- SheetJS 0.18.5（解析 .xlsx / .xls，jsDelivr 锁定版本 + SRI） -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <style>
   /* ===== 设计变量 ===== */
   :root {
@@ -565,7 +567,7 @@
 <div id="toast" role="status" aria-live="polite"><span id="toastMessage"></span></div>
 
 <!-- 隐藏的文件选择框（导入数据用） -->
-<input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+<input type="file" id="importFile" accept=".xlsx,.xls" hidden>
 
 <script>
 (function () {
@@ -948,7 +950,7 @@
     }
   }
 
-  // ===== 导入（CSV / 文本） =====
+  // ===== 导入（Excel .xlsx / .xls） =====
   function triggerImport() {
     importFile.value = '';
     importFile.click();
@@ -958,76 +960,121 @@
     var file = event.target.files[0];
     if (!file) return;
 
+    // 检查文件类型
+    if (!file.name.toLowerCase().match(/\.(xlsx|xls)$/)) {
+      showToast('请选择 Excel 文件（.xlsx 或 .xls）', 'error');
+      return;
+    }
+
+    if (typeof XLSX === 'undefined') {
+      showToast('导入组件加载失败，请检查网络后重试', 'error');
+      return;
+    }
+
+    showToast('正在解析 Excel 文件...', 'info');
+
     var reader = new FileReader();
     reader.onload = function (e) {
-      var text = String(e.target.result || '');
-      var values = parseImportText(text);
-      if (values.length === 0) {
-        showToast('文件中没有找到有效的数字数据', 'error');
-        return;
+      try {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: 'array' });
+        var firstSheetName = workbook.SheetNames[0];
+        var worksheet = workbook.Sheets[firstSheetName];
+        var rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (!rows || rows.length < 2) {
+          showToast('导入失败：Excel 文件中没有数据行', 'error');
+          return;
+        }
+
+        // 校验表头：必须包含"序号"和"数据"
+        var header = rows[0] || [];
+        var idxSeq = -1;
+        var idxData = -1;
+        for (var i = 0; i < header.length; i++) {
+          var cell = String(header[i]).trim();
+          if (cell === '序号') idxSeq = i;
+          else if (cell === '数据') idxData = i;
+        }
+        if (idxSeq === -1 || idxData === -1) {
+          showToast('导入失败：Excel 文件必须包含"序号"和"数据"两个表头', 'error');
+          return;
+        }
+
+        // 从"数据"列提取数字（从第二行开始）
+        var values = [];
+        var invalidCount = 0;
+        for (var r = 1; r < rows.length; r++) {
+          var row = rows[r];
+          if (!row || row.length <= idxData) continue;
+          var v = parseFloat(row[idxData]);
+          if (!isNaN(v)) {
+            values.push(v);
+          } else {
+            invalidCount++;
+          }
+        }
+
+        if (values.length === 0) {
+          showToast('导入失败：Excel 的"数据"列中没有有效的数字', 'error');
+          return;
+        }
+
+        state.data.push.apply(state.data, values);
+        updateAll();
+
+        var message = '成功导入 ' + values.length + ' 组数据！';
+        if (invalidCount > 0) {
+          message += '（已自动过滤 ' + invalidCount + ' 个非数字数据）';
+        }
+        showToast(message);
+
+      } catch (error) {
+        console.error('Excel 解析错误:', error);
+        showToast('导入失败：文件解析出错，请检查文件格式', 'error');
       }
-      state.data.push.apply(state.data, values);
-      updateAll();
-      showToast('成功导入 ' + values.length + ' 组数据！');
     };
+
     reader.onerror = function () {
       showToast('文件读取失败', 'error');
     };
-    reader.readAsText(file, 'utf-8');
+
+    reader.readAsArrayBuffer(file);
   }
 
-  function parseImportText(text) {
-    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 0; });
-    if (lines.length === 0) return [];
-
-    var values = [];
-
-    lines.forEach(function (line, idx) {
-      // 按常见分隔符切分
-      var cells = line.split(/[,，;；\t]+/).map(function (c) { return c.trim(); }).filter(function (c) { return c.length > 0; });
-      if (cells.length === 0) return;
-
-      // 第一行若是表头（含"序号/数据/成绩"等字样且首个单元格非数字）则跳过
-      if (idx === 0) {
-        var first = parseFloat(cells[0]);
-        if (isNaN(first) && /序|编|数|值|成绩|分数|得分/.test(cells[0])) return;
-      }
-
-      // 取该行第一个能解析成数字的单元格
-      var found = null;
-      for (var i = 0; i < cells.length; i++) {
-        var v = parseFloat(cells[i]);
-        if (!isNaN(v)) { found = v; break; }
-      }
-      if (found !== null) values.push(found);
-    });
-
-    return values;
-  }
-
-  // ===== 导出 CSV =====
-  function exportCsv() {
+  // ===== 导出 Excel（.xlsx） =====
+  function exportExcel() {
     if (state.data.length === 0) {
       showToast('暂无数据可导出', 'info');
       return;
     }
-    var rows = ['序号,数据'];
-    state.data.forEach(function (v, i) { rows.push((i + 1) + ',' + v); });
-    var csv = '\uFEFF' + rows.join('\r\n');
+    if (typeof XLSX === 'undefined') {
+      showToast('导出组件加载失败，请检查网络后重试', 'error');
+      return;
+    }
 
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var rows = [['序号', '数据']];
+    state.data.forEach(function (v, i) { rows.push([i + 1, v]); });
+
+    var worksheet = XLSX.utils.aoa_to_sheet(rows);
+    worksheet['!cols'] = [{ wch: 8 }, { wch: 12 }];
+    var workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '数据');
+
+    var out = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+    var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     var now = new Date();
     var pad = function (x) { return (x < 10 ? '0' : '') + x; };
     var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes());
     a.href = url;
-    a.download = '平均数数据_' + stamp + '.csv';
+    a.download = '平均数数据_' + stamp + '.xlsx';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    showToast('数据已导出为 CSV 文件！');
+    showToast('数据已导出为 Excel 文件！');
   }
 
   // ===== 事件绑定 =====
@@ -1049,7 +1096,7 @@
     document.getElementById('randomAddBtn').addEventListener('click', addRandomData);
     document.getElementById('clearAllBtn').addEventListener('click', clearAllData);
     document.getElementById('importBtn').addEventListener('click', triggerImport);
-    document.getElementById('exportBtn').addEventListener('click', exportCsv);
+    document.getElementById('exportBtn').addEventListener('click', exportExcel);
 
     document.getElementById('confirmAddSingle').addEventListener('click', addSingleData);
     document.getElementById('confirmAddMultiple').addEventListener('click', addMultipleData);
