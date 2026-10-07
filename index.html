@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>平均数学习工具 - 交互式教学工具</title>
+<!-- ECharts 5.6.0（jsDelivr 锁定版本 + SRI） -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
+<style>
+  /* ===== 设计变量 ===== */
+  :root {
+    --bg: #f2f4f8;
+    --card: #ffffff;
+    --line: #e3e7ee;
+    --text: #1f2937;
+    --text-2: #6b7280;
+    --text-3: #9aa3b2;
+    --blue: #3b82f6;
+    --blue-d: #2563eb;
+    --blue-l: #60a5fa;
+    --orange: #f97316;
+    --orange-d: #ea580c;
+    --red: #ef4444;
+    --red-d: #dc2626;
+    --green: #22c55e;
+    --green-d: #16a34a;
+    --purple: #8b5cf6;
+    --purple-d: #7c3aed;
+    --teal: #0d9488;
+    --teal-d: #0f766e;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 4px 18px rgba(15, 23, 42, .06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* 保证 hidden 属性始终生效（避免被 display 类覆盖） */
+  [hidden] { display: none !important; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ===== 页面骨架 ===== */
+  .page { max-width: 1440px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  .page-header { text-align: center; margin-bottom: 24px; }
+  .page-header h1 {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+  .page-header .subtitle {
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--text-2);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 372px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+
+  .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  .panel-title svg { color: var(--blue); flex: none; }
+
+  /* ===== 表格 ===== */
+  .table-wrap { overflow-x: auto; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 10px; }
+
+  table { width: 100%; border-collapse: collapse; min-width: 300px; }
+
+  thead th {
+    background: #f8fafc;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #eef1f6;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background-color .15s ease; }
+  tbody tr:hover { background: #f5f8ff; }
+
+  td.num { font-variant-numeric: tabular-nums; }
+  td.val { font-weight: 700; font-variant-numeric: tabular-nums; }
+  td.val.low { color: var(--orange); }
+  td.val.low-extreme { color: var(--red); }
+  td.avg { font-weight: 700; color: var(--blue); font-variant-numeric: tabular-nums; }
+
+  .row-del {
+    border: none;
+    background: transparent;
+    color: var(--text-3);
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color .15s ease, background-color .15s ease;
+    flex: none;
+  }
+  .row-del:hover { color: var(--red); background: #fef2f2; }
+  .row-del svg { width: 15px; height: 15px; }
+
+  .empty-row td { text-align: center; color: var(--text-3); padding: 22px 12px; font-size: 13.5px; }
+
+  /* ===== 按钮组 ===== */
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 46px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color .15s ease, transform .1s ease;
+    font-family: inherit;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  .btn-green { background: var(--green); }
+  .btn-green:hover { background: var(--green-d); }
+  .btn-orange { background: var(--orange); }
+  .btn-orange:hover { background: var(--orange-d); }
+  .btn-blue { background: var(--blue); }
+  .btn-blue:hover { background: var(--blue-d); }
+  .btn-blue-l { background: var(--blue-l); }
+  .btn-blue-l:hover { background: var(--blue); }
+  .btn-red { background: var(--red); }
+  .btn-red:hover { background: var(--red-d); }
+  .btn-red-d { background: var(--red-d); }
+  .btn-red-d:hover { background: #b91c1c; }
+  .btn-purple { background: var(--purple); }
+  .btn-purple:hover { background: var(--purple-d); }
+  .btn-teal { background: var(--teal); }
+  .btn-teal:hover { background: var(--teal-d); }
+
+  .save-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .save-hint svg { width: 13px; height: 13px; flex: none; }
+
+  /* ===== 图表区 ===== */
+  .chart-box { position: relative; height: 440px; }
+  #chart { width: 100%; height: 100%; }
+  .chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-3);
+    font-size: 14px;
+    background: #fbfcfe;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    z-index: 1;
+    text-align: center;
+    padding: 16px;
+  }
+  .chart-empty svg { width: 52px; height: 52px; color: #d7deea; }
+
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .chart-legend .item { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .swatch-blue { background: var(--blue); }
+  .swatch-orange { background: var(--orange); }
+  .swatch-red { background: var(--red); }
+  .swatch-line { height: 0; border-top: 2px dashed var(--red-d); width: 16px; }
+
+  /* ===== 公式条 ===== */
+  .formula-bar {
+    margin-top: 14px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .formula-bar b { color: var(--text); font-weight: 700; }
+  .formula-bar .eq { color: var(--blue); font-weight: 700; }
+  .formula-bar .muted { color: var(--text-3); }
+
+  /* ===== 统计卡片 ===== */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+
+  .stat-card { border-radius: 12px; padding: 14px 16px; }
+  .stat-card .label { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+  .stat-card .value { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+  .stat-card.blue { background: #eff6ff; }
+  .stat-card.blue .value { color: var(--blue); }
+  .stat-card.orange { background: #fff7ed; }
+  .stat-card.orange .value { color: var(--orange); }
+  .stat-card.red { background: #fef2f2; }
+  .stat-card.red .value { color: var(--red); }
+  .stat-card.gray { background: #f8fafc; }
+  .stat-card.gray .value { font-size: 19px; color: var(--text); line-height: 1.35; }
+
+  /* ===== 模态框 ===== */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 16px;
+  }
+  .modal-backdrop[hidden] { display: none; }
+
+  .modal {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .2);
+    width: 100%;
+    max-width: 400px;
+    padding: 24px;
+  }
+  .modal h3 { font-size: 19px; font-weight: 700; margin-bottom: 18px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 7px; }
+  .field .hint { font-size: 12.5px; color: var(--text-3); margin-top: 6px; }
+
+  .field input {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid #d6dbe4;
+    border-radius: 9px;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59, 130, 246, .18); }
+
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .btn-ghost {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 1px solid #d6dbe4;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color .15s ease;
+  }
+  .btn-ghost:hover { background: #f8fafc; }
+  .btn-solid {
+    min-height: 44px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--blue);
+    transition: background-color .15s ease;
+  }
+  .btn-solid:hover { background: var(--blue-d); }
+  .btn-solid.danger { background: var(--red); }
+  .btn-solid.danger:hover { background: var(--red-d); }
+  .btn-solid.warn { background: var(--orange); }
+  .btn-solid.warn:hover { background: var(--orange-d); }
+
+  /* ===== Toast ===== */
+  #toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 100;
+    max-width: 340px;
+    padding: 13px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .2);
+    opacity: 0;
+    transform: translateY(16px);
+    pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+  #toast.success { background: var(--green-d); }
+  #toast.error { background: var(--red-d); }
+  #toast.info { background: var(--blue-d); }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    .chart-box { height: 380px; }
+  }
+  @media (max-width: 640px) {
+    .page { padding: 20px 14px 48px; }
+    .page-header h1 { font-size: 24px; }
+    .panel { padding: 16px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .chart-box { height: 330px; }
+    .modal { padding: 20px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- ===== 页头 ===== -->
+  <header class="page-header">
+    <h1>平均数学习工具</h1>
+    <p class="subtitle">添加、修改或导入数据，实时观察平均数的变化</p>
+  </header>
+
+  <main class="layout">
+    <!-- ===== 左侧：数据操作区 ===== -->
+    <section class="panel" aria-label="数据操作区">
+      <h2 class="panel-title">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path></svg>
+        数据操作区
+      </h2>
+
+      <!-- 数据表格 -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>序号</th>
+              <th>数据</th>
+              <th>平均数</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="dataTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="btn-grid">
+        <button id="randomAddBtn" class="btn btn-green" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"></rect><circle cx="8.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="15.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="15.5" cy="8.5" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="8.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"></circle></svg>
+          随机增加
+        </button>
+        <button id="modifyBtn" class="btn btn-orange" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>
+          修改数据
+        </button>
+        <button id="addSingleBtn" class="btn btn-blue" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+          增加一组
+        </button>
+        <button id="addMultipleBtn" class="btn btn-blue-l" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v14"></path><path d="M3 8h14"></path><path d="M14 16h7"></path><path d="M21 13v6"></path></svg>
+          增加多组
+        </button>
+        <button id="deleteBtn" class="btn btn-red" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+          删除数据
+        </button>
+        <button id="clearAllBtn" class="btn btn-red-d" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+          清空数据
+        </button>
+        <button id="importBtn" class="btn btn-purple" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5"></path><path d="M12 3v12"></path></svg>
+          导入数据
+        </button>
+        <button id="exportBtn" class="btn btn-teal" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+          导出数据
+        </button>
+      </div>
+
+      <p class="save-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        数据会自动保存在本机浏览器中
+      </p>
+    </section>
+
+    <!-- ===== 右侧：数据可视化区 ===== -->
+    <section class="panel" aria-label="数据可视化区">
+      <h2 class="panel-title">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>
+        数据可视化区
+      </h2>
+
+      <!-- 图表容器 -->
+      <div id="chartBox" class="chart-box" role="img" aria-label="数据柱状图">
+        <div id="chart"></div>
+        <div id="chartEmpty" class="chart-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>
+          <span>添加数据后，这里会显示柱状图和平均线</span>
+        </div>
+      </div>
+
+      <!-- 颜色图例 -->
+      <div class="chart-legend" aria-label="图表颜色说明">
+        <span class="item"><span class="swatch swatch-blue"></span>不低于平均数</span>
+        <span class="item"><span class="swatch swatch-orange"></span>低于平均数</span>
+        <span class="item"><span class="swatch swatch-red"></span>显著偏低（低 20 以上）</span>
+        <span class="item"><span class="swatch swatch-line"></span>平均数</span>
+      </div>
+
+      <!-- 算式条 -->
+      <div id="formulaBar" class="formula-bar" aria-live="polite"></div>
+
+      <!-- 统计信息 -->
+      <div class="stats">
+        <div class="stat-card blue">
+          <div class="label">数据总和</div>
+          <div id="sumValue" class="value">0</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="label">数据个数</div>
+          <div id="countValue" class="value">0</div>
+        </div>
+        <div class="stat-card red">
+          <div class="label">当前平均数</div>
+          <div id="avgValue" class="value">0.00</div>
+        </div>
+        <div class="stat-card gray">
+          <div class="label">最大 / 最小</div>
+          <div id="minMaxValue" class="value">—</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== 模态框：增加一组 ===== -->
+<div id="addSingleModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="addSingleTitle" hidden>
+  <div class="modal">
+    <h3 id="addSingleTitle">增加一组数据</h3>
+    <div class="field">
+      <label for="singleDataInput">请输入数据值</label>
+      <input type="number" id="singleDataInput" step="any" placeholder="例如：85" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" type="button" data-close>取消</button>
+      <button class="btn-solid" type="button" id="confirmAddSingle">确认添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 模态框：增加多组 ===== -->
+<div id="addMultipleModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="addMultipleTitle" hidden>
+  <div class="modal">
+    <h3 id="addMultipleTitle">增加多组数据</h3>
+    <div class="field">
+      <label for="multipleDataInput">请输入多组数据（用逗号分隔）</label>
+      <input type="text" id="multipleDataInput" placeholder="例如：85, 90, 78, 92" autocomplete="off">
+      <p class="hint">支持逗号、中文逗号、分号或空格分隔</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" type="button" data-close>取消</button>
+      <button class="btn-solid" type="button" id="confirmAddMultiple">确认添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 模态框：删除数据 ===== -->
+<div id="deleteModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="deleteTitle" hidden>
+  <div class="modal">
+    <h3 id="deleteTitle">删除数据</h3>
+    <div class="field">
+      <label for="deleteIndexInput">请输入要删除的数据序号</label>
+      <input type="number" id="deleteIndexInput" min="1" placeholder="例如：1" autocomplete="off">
+      <p class="hint">也可以直接在左侧表格中点击行尾的 × 删除</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" type="button" data-close>取消</button>
+      <button class="btn-solid danger" type="button" id="confirmDelete">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 模态框：修改数据 ===== -->
+<div id="modifyModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modifyTitle" hidden>
+  <div class="modal">
+    <h3 id="modifyTitle">修改数据</h3>
+    <div class="field">
+      <label for="modifyIndexInput">请输入要修改的数据序号</label>
+      <input type="number" id="modifyIndexInput" min="1" placeholder="例如：1" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="modifyValueInput">请输入新的数据值</label>
+      <input type="number" id="modifyValueInput" step="any" placeholder="例如：95" autocomplete="off">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" type="button" data-close>取消</button>
+      <button class="btn-solid warn" type="button" id="confirmModify">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast 提示 ===== -->
+<div id="toast" role="status" aria-live="polite"><span id="toastMessage"></span></div>
+
+<!-- 隐藏的文件选择框（导入数据用） -->
+<input type="file" id="importFile" accept=".csv,.txt,text/csv,text/plain" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  // ===== 状态 =====
+  var STORAGE_KEY = 'avgSimData_v2';
+  var state = { data: [] };
+
+  // ===== DOM 引用 =====
+  var tableBody = document.getElementById('dataTableBody');
+  var sumValue = document.getElementById('sumValue');
+  var countValue = document.getElementById('countValue');
+  var avgValue = document.getElementById('avgValue');
+  var minMaxValue = document.getElementById('minMaxValue');
+  var formulaBar = document.getElementById('formulaBar');
+  var chartBox = document.getElementById('chartBox');
+  var chartEmpty = document.getElementById('chartEmpty');
+  var toast = document.getElementById('toast');
+  var toastMessage = document.getElementById('toastMessage');
+  var importFile = document.getElementById('importFile');
+
+  var modals = {
+    addSingle: document.getElementById('addSingleModal'),
+    addMultiple: document.getElementById('addMultipleModal'),
+    del: document.getElementById('deleteModal'),
+    modify: document.getElementById('modifyModal')
+  };
+  var inputs = {
+    single: document.getElementById('singleDataInput'),
+    multiple: document.getElementById('multipleDataInput'),
+    delIndex: document.getElementById('deleteIndexInput'),
+    modIndex: document.getElementById('modifyIndexInput'),
+    modValue: document.getElementById('modifyValueInput')
+  };
+
+  var chart = null;
+  var toastTimer = null;
+
+  // ===== 基础计算 =====
+  function total() {
+    return state.data.reduce(function (acc, v) { return acc + v; }, 0);
+  }
+  function average() {
+    if (state.data.length === 0) return 0;
+    return total() / state.data.length;
+  }
+
+  // ===== Toast =====
+  function showToast(message, type) {
+    type = type || 'success';
+    toastMessage.textContent = message;
+    toast.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.className = '';
+    }, 3000);
+  }
+
+  // ===== 表格渲染 =====
+  function renderTable() {
+    tableBody.innerHTML = '';
+    if (state.data.length === 0) {
+      var emptyRow = document.createElement('tr');
+      emptyRow.className = 'empty-row';
+      var emptyCell = document.createElement('td');
+      emptyCell.colSpan = 4;
+      emptyCell.textContent = '暂无数据，请添加数据';
+      emptyRow.appendChild(emptyCell);
+      tableBody.appendChild(emptyRow);
+      return;
+    }
+
+    var avg = average();
+    var cumulative = 0;
+
+    state.data.forEach(function (value, index) {
+      cumulative += value;
+      var cumAvg = cumulative / (index + 1);
+      var row = document.createElement('tr');
+
+      var tdIndex = document.createElement('td');
+      tdIndex.className = 'num';
+      tdIndex.textContent = index + 1;
+
+      var tdValue = document.createElement('td');
+      tdValue.className = 'val';
+      tdValue.textContent = value;
+      if (value < avg - 20) {
+        tdValue.classList.add('low-extreme');
+      } else if (value < avg) {
+        tdValue.classList.add('low');
+      }
+
+      var tdAvg = document.createElement('td');
+      tdAvg.className = 'avg';
+      tdAvg.textContent = cumAvg.toFixed(2);
+
+      var tdAction = document.createElement('td');
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'row-del';
+      delBtn.setAttribute('aria-label', '删除第 ' + (index + 1) + ' 个数据');
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>';
+      delBtn.addEventListener('click', function () {
+        state.data.splice(index, 1);
+        updateAll();
+        showToast('数据删除成功！');
+      });
+      tdAction.appendChild(delBtn);
+
+      row.appendChild(tdIndex);
+      row.appendChild(tdValue);
+      row.appendChild(tdAvg);
+      row.appendChild(tdAction);
+      tableBody.appendChild(row);
+    });
+  }
+
+  // ===== 图表渲染 =====
+  function buildChartOption() {
+    var n = state.data.length;
+    var avg = average();
+    var labels = [];
+    for (var i = 0; i < n; i++) labels.push(String(i + 1));
+
+    var showLabels = n > 0 && n <= 14;
+    var allNonNeg = n > 0 && state.data.every(function (v) { return v >= 0; });
+
+    var markLine = n > 0 ? {
+      symbol: 'none',
+      data: [{ yAxis: avg }],
+      lineStyle: { color: '#dc2626', type: 'dashed', width: 2 },
+      label: {
+        formatter: function (p) { return '平均数 ' + Number(p.value).toFixed(2); },
+        position: 'insideEndTop',
+        backgroundColor: '#dc2626',
+        color: '#ffffff',
+        padding: [4, 8],
+        borderRadius: 4,
+        fontSize: 12
+      }
+    } : undefined;
+
+    return {
+      grid: { left: 56, right: 22, top: 48, bottom: 36 },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        backgroundColor: '#1f2937',
+        borderWidth: 0,
+        padding: [10, 14],
+        textStyle: { color: '#f9fafb', fontSize: 13 },
+        formatter: function (params) {
+          var p = params[0];
+          var v = state.data[p.dataIndex];
+          var avg = average();
+          var diff = v - avg;
+          var sign = diff >= 0 ? '+' : '';
+          var rows = [];
+          rows.push('第 ' + (p.dataIndex + 1) + ' 个数据：<b>' + v + '</b>');
+          rows.push('当前平均数：' + avg.toFixed(2));
+          rows.push('与平均数相差：' + sign + diff.toFixed(2));
+          return rows.join('<br/>');
+        }
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: true,
+        data: labels,
+        axisLine: { lineStyle: { color: '#d1d5db' } },
+        axisTick: { show: false },
+        axisLabel: {
+          color: '#6b7280',
+          fontSize: 12,
+          interval: n > 14 ? 'auto' : 0,
+          rotate: n > 18 ? 30 : 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        min: allNonNeg ? 0 : undefined,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: '#e5e7eb' } },
+        axisLabel: { color: '#6b7280', fontSize: 12 }
+      },
+      series: [{
+        type: 'bar',
+        data: state.data,
+        barMaxWidth: 46,
+        itemStyle: {
+          color: function (p) {
+            var avg = average();
+            var v = state.data[p.dataIndex];
+            if (v < avg - 20) return '#ef4444';
+            if (v < avg) return '#f97316';
+            return '#3b82f6';
+          },
+          borderRadius: [4, 4, 0, 0]
+        },
+        label: {
+          show: showLabels,
+          position: 'top',
+          formatter: function (p) { return String(p.value); },
+          fontSize: 11
+        },
+        markLine: markLine
+      }]
+    };
+  }
+
+  function initChart() {
+    chart = echarts.init(document.getElementById('chart'));
+    chart.setOption(buildChartOption());
+    new ResizeObserver(function () { chart.resize(); }).observe(chartBox);
+  }
+
+  function renderChart() {
+    chart.setOption(buildChartOption());
+
+    // 空状态提示
+    chartEmpty.hidden = state.data.length > 0;
+  }
+
+  // ===== 统计与算式 =====
+  function renderStats() {
+    var n = state.data.length;
+    var sum = total();
+    var avg = average();
+
+    sumValue.textContent = sum.toFixed(2);
+    countValue.textContent = n;
+    avgValue.textContent = avg.toFixed(2);
+
+    if (n === 0) {
+      minMaxValue.textContent = '—';
+      formulaBar.innerHTML = '<span class="muted">添加数据后，这里会显示平均数算式</span>';
+      return;
+    }
+    var min = Math.min.apply(null, state.data);
+    var max = Math.max.apply(null, state.data);
+    minMaxValue.textContent = max + ' / ' + min;
+    formulaBar.innerHTML = '平均数 = 总和 ÷ 个数 = <b>' + sum.toFixed(2) + '</b> ÷ <b>' + n + '</b> = <span class="eq">' + avg.toFixed(2) + '</span>';
+  }
+
+  // ===== 汇总更新 =====
+  function updateAll() {
+    renderTable();
+    renderChart();
+    renderStats();
+    saveData();
+  }
+
+  // ===== 本地保存 =====
+  function saveData() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+    } catch (e) { /* 隐私模式下可能失败，忽略 */ }
+  }
+
+  function loadData() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        state.data = arr.filter(function (v) { return typeof v === 'number' && isFinite(v); });
+      }
+    } catch (e) { /* 数据损坏时忽略 */ }
+  }
+
+  // ===== 模态框 =====
+  function openModal(key) {
+    Object.keys(modals).forEach(function (k) { modals[k].hidden = true; });
+    modals[key].hidden = false;
+    var firstInput = inputs[key === 'addSingle' ? 'single' : key === 'addMultiple' ? 'multiple' : key === 'del' ? 'delIndex' : 'modIndex'];
+    if (firstInput) {
+      firstInput.focus();
+      firstInput.select();
+    }
+  }
+
+  function closeModals() {
+    Object.keys(modals).forEach(function (k) { modals[k].hidden = true; });
+    resetInputs();
+  }
+
+  function resetInputs() {
+    inputs.single.value = '';
+    inputs.multiple.value = '';
+    inputs.delIndex.value = '';
+    inputs.modIndex.value = '';
+    inputs.modValue.value = '';
+  }
+
+  // ===== 数据操作 =====
+  function addSingleData() {
+    var value = parseFloat(inputs.single.value);
+    if (isNaN(value)) {
+      showToast('请输入有效的数字', 'error');
+      return;
+    }
+    state.data.push(value);
+    updateAll();
+    closeModals();
+    showToast('数据添加成功！');
+  }
+
+  function addMultipleData() {
+    var input = inputs.multiple.value;
+    if (!input.trim()) {
+      showToast('请输入数据', 'error');
+      return;
+    }
+    var values = parseNumberList(input);
+    if (values.length === 0) {
+      showToast('没有有效的数据被添加', 'error');
+      return;
+    }
+    state.data.push.apply(state.data, values);
+    updateAll();
+    closeModals();
+    showToast('成功添加 ' + values.length + ' 组数据！');
+  }
+
+  function parseNumberList(text) {
+    return text.split(/[,，;；\s]+/)
+      .map(function (item) { return item.trim(); })
+      .filter(function (item) { return item !== ''; })
+      .map(function (item) { return parseFloat(item); })
+      .filter(function (item) { return !isNaN(item); });
+  }
+
+  function deleteData() {
+    var index = parseInt(inputs.delIndex.value, 10) - 1;
+    if (isNaN(index) || index < 0 || index >= state.data.length) {
+      showToast('请输入有效的序号', 'error');
+      return;
+    }
+    state.data.splice(index, 1);
+    updateAll();
+    closeModals();
+    showToast('数据删除成功！');
+  }
+
+  function modifyData() {
+    var index = parseInt(inputs.modIndex.value, 10) - 1;
+    var value = parseFloat(inputs.modValue.value);
+    if (isNaN(index) || index < 0 || index >= state.data.length) {
+      showToast('请输入有效的序号', 'error');
+      return;
+    }
+    if (isNaN(value)) {
+      showToast('请输入有效的数字', 'error');
+      return;
+    }
+    state.data[index] = value;
+    updateAll();
+    closeModals();
+    showToast('数据修改成功！');
+  }
+
+  function addRandomData() {
+    var randomValue = Math.floor(Math.random() * 100) + 1;
+    state.data.push(randomValue);
+    updateAll();
+    showToast('已随机添加数据：' + randomValue);
+  }
+
+  function clearAllData() {
+    if (state.data.length === 0) {
+      showToast('暂无数据可清空', 'info');
+      return;
+    }
+    if (window.confirm('确定要删除所有数据吗？此操作不可撤销。')) {
+      state.data = [];
+      updateAll();
+      showToast('所有数据已清空！');
+    }
+  }
+
+  // ===== 导入（CSV / 文本） =====
+  function triggerImport() {
+    importFile.value = '';
+    importFile.click();
+  }
+
+  function handleImport(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var text = String(e.target.result || '');
+      var values = parseImportText(text);
+      if (values.length === 0) {
+        showToast('文件中没有找到有效的数字数据', 'error');
+        return;
+      }
+      state.data.push.apply(state.data, values);
+      updateAll();
+      showToast('成功导入 ' + values.length + ' 组数据！');
+    };
+    reader.onerror = function () {
+      showToast('文件读取失败', 'error');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function parseImportText(text) {
+    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 0; });
+    if (lines.length === 0) return [];
+
+    var values = [];
+
+    lines.forEach(function (line, idx) {
+      // 按常见分隔符切分
+      var cells = line.split(/[,，;；\t]+/).map(function (c) { return c.trim(); }).filter(function (c) { return c.length > 0; });
+      if (cells.length === 0) return;
+
+      // 第一行若是表头（含"序号/数据/成绩"等字样且首个单元格非数字）则跳过
+      if (idx === 0) {
+        var first = parseFloat(cells[0]);
+        if (isNaN(first) && /序|编|数|值|成绩|分数|得分/.test(cells[0])) return;
+      }
+
+      // 取该行第一个能解析成数字的单元格
+      var found = null;
+      for (var i = 0; i < cells.length; i++) {
+        var v = parseFloat(cells[i]);
+        if (!isNaN(v)) { found = v; break; }
+      }
+      if (found !== null) values.push(found);
+    });
+
+    return values;
+  }
+
+  // ===== 导出 CSV =====
+  function exportCsv() {
+    if (state.data.length === 0) {
+      showToast('暂无数据可导出', 'info');
+      return;
+    }
+    var rows = ['序号,数据'];
+    state.data.forEach(function (v, i) { rows.push((i + 1) + ',' + v); });
+    var csv = '\uFEFF' + rows.join('\r\n');
+
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var now = new Date();
+    var pad = function (x) { return (x < 10 ? '0' : '') + x; };
+    var stamp = now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '_' + pad(now.getHours()) + pad(now.getMinutes());
+    a.href = url;
+    a.download = '平均数数据_' + stamp + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    showToast('数据已导出为 CSV 文件！');
+  }
+
+  // ===== 事件绑定 =====
+  function bindEvents() {
+    document.getElementById('addSingleBtn').addEventListener('click', function () {
+      openModal('addSingle');
+    });
+    document.getElementById('addMultipleBtn').addEventListener('click', function () {
+      openModal('addMultiple');
+    });
+    document.getElementById('deleteBtn').addEventListener('click', function () {
+      if (state.data.length === 0) { showToast('暂无数据可删除', 'info'); return; }
+      openModal('del');
+    });
+    document.getElementById('modifyBtn').addEventListener('click', function () {
+      if (state.data.length === 0) { showToast('暂无数据可修改', 'info'); return; }
+      openModal('modify');
+    });
+    document.getElementById('randomAddBtn').addEventListener('click', addRandomData);
+    document.getElementById('clearAllBtn').addEventListener('click', clearAllData);
+    document.getElementById('importBtn').addEventListener('click', triggerImport);
+    document.getElementById('exportBtn').addEventListener('click', exportCsv);
+
+    document.getElementById('confirmAddSingle').addEventListener('click', addSingleData);
+    document.getElementById('confirmAddMultiple').addEventListener('click', addMultipleData);
+    document.getElementById('confirmDelete').addEventListener('click', deleteData);
+    document.getElementById('confirmModify').addEventListener('click', modifyData);
+
+    // 取消 / 关闭
+    document.querySelectorAll('[data-close]').forEach(function (btn) {
+      btn.addEventListener('click', closeModals);
+    });
+
+    // 点击遮罩关闭
+    Object.keys(modals).forEach(function (k) {
+      modals[k].addEventListener('click', function (e) {
+        if (e.target === modals[k]) closeModals();
+      });
+    });
+
+    // ESC 关闭
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeModals();
+    });
+
+    // 回车确认
+    inputs.single.addEventListener('keydown', function (e) { if (e.key === 'Enter') addSingleData(); });
+    inputs.multiple.addEventListener('keydown', function (e) { if (e.key === 'Enter') addMultipleData(); });
+    inputs.delIndex.addEventListener('keydown', function (e) { if (e.key === 'Enter') deleteData(); });
+    inputs.modValue.addEventListener('keydown', function (e) { if (e.key === 'Enter') modifyData(); });
+
+    // 导入
+    importFile.addEventListener('change', handleImport);
+  }
+
+  // ===== 初始化 =====
+  function init() {
+    loadData();
+    if (typeof echarts === 'undefined') {
+      // 图表库未加载（可能是网络问题）：保留表格与统计功能，图表区给出提示
+      chartEmpty.querySelector('span').textContent = '图表组件加载失败，请检查网络后刷新页面';
+      chartEmpty.hidden = false;
+      renderTable();
+      renderStats();
+      saveData();
+    } else {
+      initChart();
+      updateAll();
+    }
+    bindEvents();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
