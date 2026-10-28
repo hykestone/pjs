@@ -4,10 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>平均数学习工具 - 交互式教学工具</title>
-<!-- ECharts 5.6.0（jsDelivr 锁定版本 + SRI） -->
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous"></script>
-<!-- SheetJS 0.18.5（解析 .xlsx / .xls，jsDelivr 锁定版本 + SRI） -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<!-- CDN 备用镜像：主源 jsDelivr 加载失败时自动切换 cdnjs（同版本字节一致，SRI 相同） -->
+<script>
+  window.__cdnFallback = function (lib, url) {
+    if (lib === 'echarts' && window.echarts) return;
+    if (lib === 'xlsx' && window.XLSX) return;
+    var s = document.createElement('script');
+    s.src = url;
+    s.integrity = lib === 'echarts'
+      ? 'sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss'
+      : 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+    s.crossOrigin = 'anonymous';
+    document.head.appendChild(s);
+  };
+</script>
+<!-- ECharts 5.6.0（jsDelivr 锁定版本 + SRI，失败自动切 cdnjs） -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js" integrity="sha384-pPi0zxBAoDu6+JXW/C68UZLvBUUtU+7zonhif43rqj7pxsGyqyqzcian2Rj37Rss" crossorigin="anonymous" onerror="window.__cdnFallback('echarts','https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js')"></script>
+<!-- SheetJS 0.18.5（解析 .xlsx / .xls，jsDelivr 锁定版本 + SRI，失败自动切 cdnjs） -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous" onerror="window.__cdnFallback('xlsx','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')"></script>
 <style>
   /* ===== 设计变量 ===== */
   :root {
@@ -1134,12 +1148,24 @@
   function init() {
     loadData();
     if (typeof echarts === 'undefined') {
-      // 图表库未加载（可能是网络问题）：保留表格与统计功能，图表区给出提示
-      chartEmpty.querySelector('span').textContent = '图表组件加载失败，请检查网络后刷新页面';
-      chartEmpty.hidden = false;
+      // 图表库未加载（主 CDN 失败）：表格与统计照常工作，图表区给出提示并自动重试（等待备用 CDN / 网络恢复）
       renderTable();
       renderStats();
       saveData();
+      chartEmpty.querySelector('span').textContent = '图表组件加载失败，正在自动重试...';
+      chartEmpty.hidden = false;
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries++;
+        if (typeof echarts !== 'undefined') {
+          clearInterval(timer);
+          initChart();
+          updateAll();
+        } else if (tries >= 15) {
+          clearInterval(timer);
+          chartEmpty.querySelector('span').textContent = '图表组件加载失败，请检查网络后刷新页面';
+        }
+      }, 1000);
     } else {
       initChart();
       updateAll();
